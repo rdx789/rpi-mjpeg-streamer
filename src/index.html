@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raspberry Pi Camera Stream</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            max-width: 1400px;
+            width: 100%;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+
+        .stream-container {
+            position: relative;
+            background: #000;
+            width: 100%;
+            padding-bottom: 75%; /* 4:3 aspect ratio */
+            overflow: hidden;
+        }
+
+        .stream {
+            position: absolute;
+            /*top: 0;*/
+            /*left: 0;*/
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+		.status {
+		    position: absolute;
+		    top: 2%;
+		    right: 2%;
+
+		    display: inline-flex;
+		    align-items: center;
+		    gap: 0.4em;
+
+		    /* Responsive font size */
+		    font-size: clamp(12px, 1.1vw, 16px);
+
+		    font-weight: 500;
+		    line-height: 1;
+
+		    padding-block: 1px;      /* +2px total height */
+		    padding-inline: 0.6em;
+
+		    background: rgba(0, 0, 0, 0.35);
+		    color: white;
+
+		    border-radius: 6px;
+		    pointer-events: none;
+		}
+
+		.status-indicator {
+		    width: 0.66em;
+		    height: 0.66em;
+		    border-radius: 50%;
+		    background: #10b981;
+		}
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .info {
+            padding: 30px;
+            background: #f9fafb;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .info-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .info-card h3 {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-card p {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .footer {
+            padding: 20px 30px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.875rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .error-message {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            font-size: 1rem;
+            text-align: center;
+            z-index: 10;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 Raspberry Pi Camera Stream</h1>
+            <p>Live MJPEG Video Feed</p>
+        </div>
+
+        <div class="stream-container">
+            <img src="/stream" alt="Camera Stream" class="stream" id="streamImg">
+            <div class="status">
+                <div class="status-indicator"></div>
+                <span>Live</span>
+            </div>
+            <div class="error-message" id="errorMessage">
+                Connection Lost. Retrying...
+            </div>
+        </div>
+
+        <div class="info">
+            <div class="info-grid">
+                <div class="info-card">
+                    <h3>Resolution</h3>
+                    <p>1280 × 960</p>
+                </div>
+                <div class="info-card">
+                    <h3>Frame Rate</h3>
+                    <p>25 FPS</p>
+                </div>
+                <div class="info-card">
+                    <h3>Format</h3>
+                    <p>MJPEG</p>
+                </div>
+                <div class="info-card">
+                    <h3>Quality</h3>
+                    <p>70%</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Powered by Rust • GStreamer • Axum</p>
+        </div>
+    </div>
+
+    <script>
+        const img = document.getElementById('streamImg');
+        const errorMsg = document.getElementById('errorMessage');
+        const statusIndicator = document.querySelector('.status-indicator');
+        const statusText = document.querySelector('.status span');
+
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        img.addEventListener('error', () => {
+            statusIndicator.style.background = '#ef4444';
+            statusText.textContent = 'Disconnected';
+            errorMsg.style.display = 'block';
+
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                setTimeout(() => {
+                    img.src = '/stream?t=' + new Date().getTime();
+                }, 2000);
+            }
+        });
+
+        img.addEventListener('load', () => {
+            statusIndicator.style.background = '#10b981';
+            statusText.textContent = 'Live';
+            errorMsg.style.display = 'none';
+            reconnectAttempts = 0;
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+#gitignore
+# Rust
+/target
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Optional: env files
+.env
+.env.local

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Live Camera</title>
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: black;
+            height: 100%;
+        }
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+    <img id="stream" src="/stream" />
+
+    <script>
+        const img = document.getElementById("stream");
+        let last = Date.now();
+
+        img.onload = () => last = Date.now();
+        img.onerror = () => reload();
+
+        function reload() {
+            img.src = "/stream?t=" + Date.now();
+        }
+
+        setInterval(() => {
+            if (Date.now() - last > 3000) reload();
+        }, 2000);
+    </script>
+</body>
+</html>
